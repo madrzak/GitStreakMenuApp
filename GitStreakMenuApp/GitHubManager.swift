@@ -11,6 +11,36 @@ class GitHubManager {
     private var username: String?
     private var token: String?
     
+    // Display format options
+    enum DisplayFormat: String, CaseIterable, Identifiable {
+        case emoji = "🔥 %d"
+        case days = "%d days"
+        case justNumber = "%d"
+        case fire = "🔥%d"
+        case streak = "Streak: %d"
+        case custom = ""
+        
+        var id: String { self.rawValue }
+        
+        var description: String {
+            switch self {
+            case .emoji: return "🔥 3"
+            case .days: return "3 days"
+            case .justNumber: return "3"
+            case .fire: return "🔥3"
+            case .streak: return "Streak: 3"
+            case .custom: return "Custom..."
+            }
+        }
+        
+        static func fromRawValue(_ rawValue: String) -> DisplayFormat {
+            return self.allCases.first(where: { $0.rawValue == rawValue }) ?? .emoji
+        }
+    }
+    
+    var displayFormat: DisplayFormat = .emoji
+    var customFormat: String = ""
+    
     enum GitHubError: Error {
         case noUsernameSet
         case networkError
@@ -43,6 +73,7 @@ class GitHubManager {
     init() {
         // Load credentials directly from UserDefaults
         loadCredentials()
+        loadDisplaySettings()
     }
     
     private func loadCredentials() {
@@ -50,6 +81,14 @@ class GitHubManager {
         self.token = UserDefaults.standard.string(forKey: "GitHubToken")
         
         print("Loaded credentials - Username: \(self.username ?? "none"), Token: \(self.token != nil ? "exists" : "none")")
+    }
+    
+    private func loadDisplaySettings() {
+        if let formatString = UserDefaults.standard.string(forKey: "DisplayFormat") {
+            self.displayFormat = DisplayFormat.fromRawValue(formatString)
+        }
+        
+        self.customFormat = UserDefaults.standard.string(forKey: "CustomFormat") ?? ""
     }
     
     func setCredentials(username: String, token: String?) {
@@ -66,6 +105,30 @@ class GitHubManager {
         UserDefaults.standard.synchronize()
         
         print("Saved credentials - Username: \(username), Token: \(token != nil ? "exists" : "none")")
+    }
+    
+    func setDisplayFormat(_ format: DisplayFormat, customFormat: String = "") {
+        self.displayFormat = format
+        
+        // Only update custom format if it's not empty or if we're using custom format
+        if !customFormat.isEmpty || format == .custom {
+            self.customFormat = customFormat
+        }
+        
+        // Save to UserDefaults
+        UserDefaults.standard.set(format.rawValue, forKey: "DisplayFormat")
+        UserDefaults.standard.set(self.customFormat, forKey: "CustomFormat")
+        UserDefaults.standard.synchronize()
+    }
+    
+    func formatStreak(_ count: Int) -> String {
+        if displayFormat == .custom && !customFormat.isEmpty {
+            // For custom format, replace %d with the count
+            return customFormat.replacingOccurrences(of: "%d", with: "\(count)")
+        } else {
+            // For predefined formats, use the raw value format string
+            return String(format: displayFormat.rawValue, count)
+        }
     }
     
     func fetchCurrentStreak(completion: @escaping (Int?, Error?) -> Void) {

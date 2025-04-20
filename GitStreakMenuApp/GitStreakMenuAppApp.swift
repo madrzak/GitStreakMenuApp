@@ -207,10 +207,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if error {
                 button.title = "⚠️"
             } else if let count = streakCount {
-                button.title = "🔥 \(count)"
+                button.title = gitHubManager.formatStreak(count)
             } else {
                 button.title = "🔄"
             }
         }
+    }
+    
+    // Force refresh of display format without fetching data
+    func updateStatusItemDisplay() {
+        // Get last known streak if available
+        if let menu = statusItem.menu, 
+           menu.items.count > 0 {
+            
+            let title = menu.items[0].title
+            
+            if title.contains("Current streak:") {
+                // Extract the number from "Current streak: X days"
+                let components = title.components(separatedBy: "Current streak: ")
+                if components.count > 1 {
+                    let numString = components[1].replacingOccurrences(of: " days", with: "")
+                    if let count = Int(numString) {
+                        // Update the display only, DO NOT call refreshData
+                        if let button = statusItem.button {
+                            button.title = gitHubManager.formatStreak(count)
+                        }
+                        return
+                    }
+                }
+            }
+        }
+        
+        // If we couldn't extract the streak, refresh the data
+        // But we'll avoid doing this to prevent infinite loops
+        print("Could not extract streak count from menu item title")
     }
 }
