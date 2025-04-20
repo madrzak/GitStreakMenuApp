@@ -69,6 +69,10 @@ struct SettingsView: View {
                         
                         Link("How to create a token", destination: URL(string: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token")!)
                             .font(.caption)
+                            
+                        Link("Go to GitHub tokens page", destination: URL(string: "https://github.com/settings/tokens")!)
+                            .font(.caption)
+                            .padding(.top, 2)
                     }
                     .padding()
                 }
