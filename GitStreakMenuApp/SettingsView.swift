@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var username: String = ""
     @State private var token: String = ""
     @State private var showingSuccessAlert: Bool = false
+    @Environment(\.presentationMode) var presentationMode
     
     private let gitHubManager = (NSApplication.shared.delegate as? AppDelegate)?.gitHubManager
     
@@ -70,19 +71,40 @@ struct SettingsView: View {
         .padding()
         .frame(width: 450, height: 350)
         .alert("Settings Saved", isPresented: $showingSuccessAlert) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {
+                closeWindow()
+            }
         } message: {
             Text("Your GitHub settings have been saved and your streak will now be updated.")
         }
     }
     
     private func saveSettings() {
+        // Force UserDefaults to sync immediately
+        UserDefaults.standard.set(username, forKey: "GitHubUsername")
+        if !token.isEmpty {
+            UserDefaults.standard.set(token, forKey: "GitHubToken")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "GitHubToken")
+        }
+        UserDefaults.standard.synchronize()
+        
+        // Now update the GitHubManager
         gitHubManager?.setCredentials(username: username, token: token.isEmpty ? nil : token)
         
-        // Trigger a refresh of the streak data
-        (NSApplication.shared.delegate as? AppDelegate)?.refreshData()
-        
         showingSuccessAlert = true
+    }
+    
+    private func closeWindow() {
+        // Close the window
+        if let window = NSApplication.shared.windows.first(where: { $0.title == "GitHub Streak Settings" }) {
+            window.close()
+        }
+        
+        // Trigger a refresh of the streak data
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            (NSApplication.shared.delegate as? AppDelegate)?.refreshData()
+        }
     }
 }
 

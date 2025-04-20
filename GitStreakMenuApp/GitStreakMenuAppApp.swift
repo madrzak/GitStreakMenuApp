@@ -23,6 +23,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var gitHubManager: GitHubManager!
     private var settingsWindow: NSWindow?
+    private var refreshTimer: Timer?
+    private let refreshInterval: TimeInterval = 3600 // Refresh every hour
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize GitHub Manager
@@ -42,14 +44,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         
         // Check if username is already set
-        if UserDefaults.standard.string(forKey: "GitHubUsername") != nil {
+        if let username = UserDefaults.standard.string(forKey: "GitHubUsername"), !username.isEmpty {
+            print("Username found in UserDefaults: \(username)")
             // Initial fetch of streak data
             fetchStreakData()
+            
+            // Set up timer to refresh data periodically
+            setupRefreshTimer()
         } else {
+            print("No username found in UserDefaults, showing settings")
             // Show settings if no username is set
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.openSettings()
             }
+        }
+    }
+    
+    func setupRefreshTimer() {
+        // Invalidate any existing timer
+        refreshTimer?.invalidate()
+        
+        // Create a new timer
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
+            self?.fetchStreakData()
         }
     }
     
@@ -59,6 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Fetching streak data...", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Refresh", action: #selector(refreshData), keyEquivalent: "r"))
+        menu.addItem(NSMenuItem(title: "Test Connection", action: #selector(testConnection), keyEquivalent: "t"))
         menu.addItem(NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -67,42 +85,97 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func refreshData() {
+        print("Manual refresh triggered")
         fetchStreakData()
     }
     
-    @objc func openSettings() {
-        // Create settings window if it doesn't exist
-        if settingsWindow == nil {
-            let settingsView = SettingsView()
-            let hostingController = NSHostingController(rootView: settingsView)
-            
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 450, height: 350),
-                styleMask: [.titled, .closable],
-                backing: .buffered,
-                defer: false
-            )
-            
-            window.title = "GitHub Streak Settings"
-            window.center()
-            window.contentViewController = hostingController
-            window.isReleasedWhenClosed = false
-            window.makeKey()
-            
-            settingsWindow = window
+    @objc func testConnection() {
+        print("Testing network connection...")
+        
+        if let menu = statusItem.menu, menu.items.count > 0 {
+            menu.removeItem(at: 0)
+            menu.insertItem(NSMenuItem(title: "Testing connection...", action: nil, keyEquivalent: ""), at: 0)
         }
         
+        let url = URL(string: "https://api.github.com")!
+        let task = URLSession.shared.dataTask(with: url) { [weak self] _, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Connection test failed: \(error.localizedDescription)")
+                    
+                    if let menu = self?.statusItem.menu, menu.items.count > 0 {
+                        menu.removeItem(at: 0)
+                        menu.insertItem(NSMenuItem(title: "Connection test failed: \(error.localizedDescription)", action: nil, keyEquivalent: ""), at: 0)
+                    }
+                    
+                    self?.updateStatusItemDisplay(error: true)
+                    
+                    // Show an alert with instructions
+                    let alert = NSAlert()
+                    alert.messageText = "Network Connection Failed"
+                    alert.informativeText = "The app cannot connect to GitHub. This is likely because it needs network permissions.\n\n1. Quit the app\n2. Restart the app\n3. If that doesn't work, check your internet connection and try again"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                    
+                } else if let httpResponse = response as? HTTPURLResponse {
+                    print("Connection test succeeded: Status \(httpResponse.statusCode)")
+                    
+                    if let menu = self?.statusItem.menu, menu.items.count > 0 {
+                        menu.removeItem(at: 0)
+                        menu.insertItem(NSMenuItem(title: "Connection successful! Status: \(httpResponse.statusCode)", action: nil, keyEquivalent: ""), at: 0)
+                    }
+                    
+                    // If connection is successful, try to fetch data again
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        self?.refreshData()
+                    }
+                }
+            }
+        }
+        
+        task.resume()
+    }
+    
+    @objc func openSettings() {
+        print("Opening settings window")
+        // Close the existing window if it's already open
+        settingsWindow?.close()
+        
+        // Create a new settings window
+        let settingsView = SettingsView()
+        let hostingController = NSHostingController(rootView: settingsView)
+        
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 450, height: 350),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.title = "GitHub Streak Settings"
+        window.center()
+        window.contentViewController = hostingController
+        window.isReleasedWhenClosed = false
+        
+        settingsWindow = window
+        
         // Show the window and bring it to front
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
     
     func fetchStreakData() {
+        print("Fetching streak data...")
+        updateStatusItemDisplay() // Show loading indicator
+        
         gitHubManager.fetchCurrentStreak { [weak self] streakCount, error in
             DispatchQueue.main.async {
                 if let error = error {
+                    print("Error fetching streak: \(error.localizedDescription)")
                     self?.updateMenuWithError(error)
                 } else if let streakCount = streakCount {
+                    print("Streak fetched successfully: \(streakCount)")
                     self?.updateMenuWithStreak(streakCount)
                 }
             }
