@@ -9,7 +9,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct GitStreakMenuAppApp: App {
+struct GitStreakMenuApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
@@ -27,6 +27,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let refreshInterval: TimeInterval = 3600 // Refresh every hour
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set app to run as a menu bar app without dock icon
+        NSApp.setActivationPolicy(.accessory)
+        
         // Initialize GitHub Manager
         gitHubManager = GitHubManager()
         
