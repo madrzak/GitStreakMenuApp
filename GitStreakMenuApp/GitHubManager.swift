@@ -324,19 +324,47 @@ class GitHubManager {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         
-        // Check if the first day is today or yesterday (to account for timezone differences)
-        if let firstDay = allDays.first {
-            let dayDifference = calendar.dateComponents([.day], from: calendar.startOfDay(for: firstDay.date), to: today).day ?? 0
-            if dayDifference > 1 {
-                // Check if the day is more than 1 day away from today, which means no recent contributions
-                return 0
-            }
+        // Get the most recent day with data
+        guard let firstDay = allDays.first else {
+            return 0
+        }
+        
+        let dayDifference = calendar.dateComponents([.day], from: calendar.startOfDay(for: firstDay.date), to: today).day ?? 0
+        
+        // If the most recent day is more than 2 days ago, there's no streak
+        // This allows for 0 days (today) or 1 day (yesterday) difference
+        if dayDifference > 1 {
+            return 0
+        }
+        
+        // Check if today has a contribution
+        let todayHasContribution = allDays.first?.date == today && allDays.first?.count ?? 0 > 0
+        
+        // If today has a contribution, start counting from today
+        // If not, and yesterday had a contribution, start counting from yesterday (skipping today)
+        var startIndex = 0
+        if !todayHasContribution && dayDifference == 0 {
+            // Today is in the data but has no contribution, skip it
+            startIndex = 1
         }
         
         // Count consecutive days with contributions
-        for day in allDays {
+        for i in startIndex..<allDays.count {
+            let day = allDays[i]
+            
             if day.count > 0 {
                 streak += 1
+                
+                // If we're checking days other than today, make sure they're consecutive
+                if i > 0 {
+                    let previousDay = allDays[i-1]
+                    let daysBetween = calendar.dateComponents([.day], from: calendar.startOfDay(for: day.date), to: calendar.startOfDay(for: previousDay.date)).day ?? 0
+                    
+                    // If there's a gap of more than 1 day, break the streak
+                    if daysBetween > 1 {
+                        break
+                    }
+                }
             } else {
                 break
             }
