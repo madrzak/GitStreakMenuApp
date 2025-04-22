@@ -37,165 +37,22 @@ struct SettingsView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             // GitHub Account Tab
-            VStack(alignment: .leading, spacing: 20) {
-                Text("GitHub Account")
-                    .font(.title)
-                    .padding(.bottom, 10)
-                
-                Text("Enter your GitHub username and personal access token to fetch your commit streak. The token is only needed for private repositories or if you hit API rate limits.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 15) {
-                        HStack {
-                            Text("GitHub Username:")
-                                .frame(width: 120, alignment: .leading)
-                            TextField("username", text: $username)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                        
-                        HStack {
-                            Text("Personal Token:")
-                                .frame(width: 120, alignment: .leading)
-                            SecureField("token (optional)", text: $token)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                        }
-                        
-                        Text("The token only needs 'read:user' scope.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Link("How to create a token", destination: URL(string: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token")!)
-                            .font(.caption)
-                            
-                        Link("Go to GitHub tokens page", destination: URL(string: "https://github.com/settings/tokens")!)
-                            .font(.caption)
-                            .padding(.top, 2)
-                    }
-                    .padding()
-                }
-                
-                Spacer()
-                
-                HStack {
-                    Spacer()
-                    Button("Save") {
-                        saveAccountSettings()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
-            .padding()
+            AccountSettingsView(
+                username: $username,
+                token: $token,
+                onSave: saveAccountSettings
+            )
             .tabItem {
                 Label("Account", systemImage: "person.fill")
             }
             .tag(0)
             
             // Display Settings Tab
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Display Settings")
-                    .font(.title)
-                    .padding(.bottom, 10)
-                
-                Text("Customize how your GitHub streak is displayed in the menu bar.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                
-                GroupBox {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 15) {
-                            Text("Display Format:")
-                                .font(.headline)
-                                .padding(.bottom, 5)
-                                
-                            // Picker for predefined formats
-                            Picker("", selection: $selectedDisplayFormat) {
-                                ForEach(GitHubManager.DisplayFormat.allCases) { format in
-                                    Text(format.description).tag(format)
-                                }
-                            }
-                            .pickerStyle(RadioGroupPickerStyle())
-                            .padding(.bottom, 10)
-                            .onChange(of: selectedDisplayFormat) { newValue in
-                                // Clear custom format if not custom
-                                if newValue != .custom && customFormat.isEmpty {
-                                    customFormat = "%d"
-                                }
-                            }
-                            
-                            // Custom format input
-                            if selectedDisplayFormat == .custom {
-                                HStack {
-                                    Text("Custom Format:")
-                                        .frame(width: 120, alignment: .leading)
-                                    TextField("Use %d for the streak count", text: $customFormat)
-                                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                                        .onChange(of: customFormat) { newValue in
-                                            // Limit to 10 characters
-                                            if newValue.count > 10 {
-                                                customFormat = String(newValue.prefix(10))
-                                            }
-                                            
-                                            // Ensure %d exists in the format
-                                            if !newValue.contains("%d") && !newValue.isEmpty {
-                                                customFormat = newValue + "%d"
-                                            }
-                                        }
-                                }
-                                
-                                Text("Limited to 10 characters. Include %d to show the streak count.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Divider()
-                                .padding(.vertical, 10)
-                            
-                            // Live preview
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Preview:")
-                                    .font(.headline)
-                                
-                                HStack {
-                                    Text("In menu bar:")
-                                        .frame(minWidth: 100, alignment: .leading)
-                                    
-                                    Text(previewFormat(3))
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.gray.opacity(0.2))
-                                        .cornerRadius(5)
-                                }
-                                
-                                HStack {
-                                    Text("Long streak:")
-                                        .frame(minWidth: 100, alignment: .leading)
-                                    
-                                    Text(previewFormat(365))
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.gray.opacity(0.2))
-                                        .cornerRadius(5)
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                }
-                
-                HStack {
-                    Spacer()
-                    Button("Save") {
-                        saveDisplaySettings()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
-                .padding(.top, 10)
-            }
-            .padding()
+            DisplaySettingsView(
+                selectedDisplayFormat: $selectedDisplayFormat,
+                customFormat: $customFormat,
+                onSave: saveDisplaySettings
+            )
             .tabItem {
                 Label("Display", systemImage: "eye.fill")
             }
@@ -208,16 +65,6 @@ struct SettingsView: View {
             }
         } message: {
             Text("Your settings have been saved and your streak will now be updated.")
-        }
-    }
-    
-    private func previewFormat(_ count: Int) -> String {
-        if selectedDisplayFormat == .custom && !customFormat.isEmpty {
-            // For custom format, replace %d with the count
-            return customFormat.replacingOccurrences(of: "%d", with: "\(count)")
-        } else {
-            // For predefined formats, use the raw value format string
-            return String(format: selectedDisplayFormat.rawValue, count)
         }
     }
     
@@ -276,14 +123,6 @@ struct SettingsView: View {
         }
         
         showingSuccessAlert = true
-    }
-    
-    private func saveSettings() {
-        if selectedTab == 0 {
-            saveAccountSettings()
-        } else {
-            saveDisplaySettings()
-        }
     }
     
     private func closeWindow() {
