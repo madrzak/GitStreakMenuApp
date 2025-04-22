@@ -85,8 +85,10 @@ struct SettingsView: View {
     }
     
     private func saveDisplaySettings() {
-        // Ensure custom format has %d
-        if selectedDisplayFormat == .custom && !customFormat.contains("%d") && !customFormat.isEmpty {
+        // Ensure at least one placeholder exists
+        if selectedDisplayFormat == .custom && 
+           !customFormat.contains("%d") && !customFormat.contains("%l") && 
+           !customFormat.contains("%t") && !customFormat.isEmpty {
             customFormat = customFormat + "%d"
         }
         

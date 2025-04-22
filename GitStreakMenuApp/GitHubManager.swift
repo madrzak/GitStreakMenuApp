@@ -41,6 +41,11 @@ class GitHubManager {
     var displayFormat: DisplayFormat = .emoji
     var customFormat: String = ""
     
+    // Add properties to store total commits and longest streak
+    private var totalCommits: Int = 0
+    private var longestStreak: Int = 0
+    private var currentStreak: Int = 0
+    
     enum GitHubError: Error {
         case noUsernameSet
         case networkError
@@ -122,9 +127,16 @@ class GitHubManager {
     }
     
     func formatStreak(_ count: Int) -> String {
+        // Store current streak for later use
+        self.currentStreak = count
+        
         if displayFormat == .custom && !customFormat.isEmpty {
-            // For custom format, replace %d with the count
-            return customFormat.replacingOccurrences(of: "%d", with: "\(count)")
+            // For custom format, replace all placeholders
+            var formattedString = customFormat
+            formattedString = formattedString.replacingOccurrences(of: "%d", with: "\(currentStreak)")
+            formattedString = formattedString.replacingOccurrences(of: "%l", with: "\(longestStreak)")
+            formattedString = formattedString.replacingOccurrences(of: "%t", with: "\(totalCommits)")
+            return formattedString
         } else {
             // For predefined formats, use the raw value format string
             return String(format: displayFormat.rawValue, count)
@@ -240,8 +252,13 @@ class GitHubManager {
                                let contributionCalendar = contributionsCollection["contributionCalendar"] as? [String: Any],
                                let weeks = contributionCalendar["weeks"] as? [[String: Any]] {
                                 
-                                let streak = self.calculateStreak(from: weeks)
-                                print("Calculated streak: \(streak)")
+                                // Calculate current streak, longest streak, and total commits
+                                let (streak, longest, total) = self.calculateStreakStats(from: weeks)
+                                self.currentStreak = streak
+                                self.longestStreak = longest
+                                self.totalCommits = total
+                                
+                                print("Calculated stats - Current streak: \(streak), Longest streak: \(longest), Total commits: \(total)")
                                 completion(streak, nil)
                             } else {
                                 // User data might be nil if the user doesn't exist
@@ -297,8 +314,10 @@ class GitHubManager {
         }
     }
     
-    private func calculateStreak(from weeks: [[String: Any]]) -> Int {
-        var streak = 0
+    private func calculateStreakStats(from weeks: [[String: Any]]) -> (currentStreak: Int, longestStreak: Int, totalCommits: Int) {
+        var currentStreak = 0
+        var longestStreak = 0
+        var totalCommits = 0
         var allDays: [(date: Date, count: Int)] = []
         
         // Step 1: Collect all contribution days and sort them by date
@@ -312,6 +331,7 @@ class GitHubManager {
                        let date = dateFormatter.date(from: dateString),
                        let count = day["contributionCount"] as? Int {
                         allDays.append((date: date, count: count))
+                        totalCommits += count
                     }
                 }
             }
@@ -326,7 +346,7 @@ class GitHubManager {
         
         // Get the most recent day with data
         guard let firstDay = allDays.first else {
-            return 0
+            return (0, 0, 0)
         }
         
         let dayDifference = calendar.dateComponents([.day], from: calendar.startOfDay(for: firstDay.date), to: today).day ?? 0
@@ -334,7 +354,9 @@ class GitHubManager {
         // If the most recent day is more than 2 days ago, there's no streak
         // This allows for 0 days (today) or 1 day (yesterday) difference
         if dayDifference > 1 {
-            return 0
+            // No current streak, but still calculate longest streak
+            longestStreak = calculateLongestStreak(from: allDays)
+            return (0, longestStreak, totalCommits)
         }
         
         // Check if today has a contribution
@@ -353,7 +375,7 @@ class GitHubManager {
             let day = allDays[i]
             
             if day.count > 0 {
-                streak += 1
+                currentStreak += 1
                 
                 // If we're checking days other than today, make sure they're consecutive
                 if i > 0 {
@@ -370,6 +392,49 @@ class GitHubManager {
             }
         }
         
-        return streak
+        // Calculate longest streak
+        longestStreak = calculateLongestStreak(from: allDays)
+        longestStreak = max(longestStreak, currentStreak)
+        
+        return (currentStreak, longestStreak, totalCommits)
+    }
+    
+    private func calculateLongestStreak(from days: [(date: Date, count: Int)]) -> Int {
+        var longestStreak = 0
+        var currentStreak = 0
+        let calendar = Calendar.current
+        
+        // We need to reverse the array to go from oldest to newest when calculating longest
+        let sortedDays = days.sorted { $0.date < $1.date }
+        
+        for i in 0..<sortedDays.count {
+            let day = sortedDays[i]
+            
+            if day.count > 0 {
+                if i > 0 {
+                    let previousDay = sortedDays[i-1]
+                    let daysBetween = calendar.dateComponents([.day], from: calendar.startOfDay(for: previousDay.date), to: calendar.startOfDay(for: day.date)).day ?? 0
+                    
+                    if daysBetween == 1 {
+                        // Consecutive day
+                        currentStreak += 1
+                    } else {
+                        // Non-consecutive, reset streak
+                        currentStreak = 1
+                    }
+                } else {
+                    // First day with contribution
+                    currentStreak = 1
+                }
+                
+                // Update longest streak if needed
+                longestStreak = max(longestStreak, currentStreak)
+            } else {
+                // No contribution on this day, reset streak
+                currentStreak = 0
+            }
+        }
+        
+        return longestStreak
     }
 } 
