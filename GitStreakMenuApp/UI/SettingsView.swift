@@ -16,7 +16,7 @@ struct SettingsView: View {
     @State private var selectedTab = 0
     @Environment(\.presentationMode) var presentationMode
     
-    private let gitHubManager = (NSApplication.shared.delegate as? AppDelegate)?.gitHubManager
+    private let gitHubManager = AppDelegate.shared?.gitHubManager
     
     init() {
         // Load existing values from UserDefaults
@@ -24,7 +24,7 @@ struct SettingsView: View {
         _token = State(initialValue: UserDefaults.standard.string(forKey: "GitHubToken") ?? "")
         
         // Load display format settings
-        if let manager = (NSApplication.shared.delegate as? AppDelegate)?.gitHubManager {
+        if let manager = AppDelegate.shared?.gitHubManager {
             _selectedDisplayFormat = State(initialValue: manager.displayFormat)
             _customFormat = State(initialValue: manager.customFormat)
         } else {
@@ -102,25 +102,14 @@ struct SettingsView: View {
         
         // Manually trigger a display refresh WITHOUT triggering data refresh
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            // Access the current streak value from the app delegate
-            if let appDelegate = NSApplication.shared.delegate as? AppDelegate,
-               let menu = appDelegate.statusItem.menu,
-               menu.items.count > 0 {
-                
-                let title = menu.items[0].title
-                
-                if title.contains("Current streak:") {
-                    // Extract streak value
-                    let components = title.components(separatedBy: "Current streak: ")
-                    if components.count > 1 {
-                        let numString = components[1].replacingOccurrences(of: " days", with: "")
-                        if let count = Int(numString),
-                           let button = appDelegate.statusItem.button {
-                            // Update display directly
-                            button.title = appDelegate.gitHubManager.formatStreak(count)
-                        }
-                    }
-                }
+            print("Accessing AppDelegate.shared")
+            if let appDelegate = AppDelegate.shared {
+                print("Found AppDelegate.shared")
+                // Use the existing updateStatusItemDisplay() method
+                appDelegate.updateStatusItemDisplay()
+                print("Updated display format")
+            } else {
+                print("AppDelegate.shared is nil")
             }
         }
         
@@ -135,7 +124,7 @@ struct SettingsView: View {
         
         // Trigger a refresh of the streak data
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            (NSApplication.shared.delegate as? AppDelegate)?.refreshData()
+            AppDelegate.shared?.refreshData()
         }
     }
 }

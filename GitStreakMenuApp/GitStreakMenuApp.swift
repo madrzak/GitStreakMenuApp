@@ -20,6 +20,7 @@ struct GitStreakMenuApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    static var shared: AppDelegate?
     var statusItem: NSStatusItem!
     var gitHubManager: GitHubManager!
     private var settingsWindow: NSWindow?
@@ -27,6 +28,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let refreshInterval: TimeInterval = 3600 // Refresh every hour
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set shared instance
+        AppDelegate.shared = self
+        
         // Set app to run as a menu bar app without dock icon
         NSApp.setActivationPolicy(.accessory)
         
@@ -219,6 +223,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // Force refresh of display format without fetching data
     func updateStatusItemDisplay() {
+        print("updateStatusItemDisplay")
         // Get last known streak if available
         if let menu = statusItem.menu, 
            menu.items.count > 0 {

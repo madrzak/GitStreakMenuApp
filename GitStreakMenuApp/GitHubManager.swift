@@ -224,9 +224,9 @@ class GitHubManager {
                     }
                     
                     // Debug: Print JSON response
-                    if let jsonString = String(data: data, encoding: .utf8) {
-                        print("GitHub API response data: \(jsonString)")
-                    }
+//                    if let jsonString = String(data: data, encoding: .utf8) {
+//                        print("GitHub API response data: \(jsonString)")
+//                    }
                     
                     do {
                         // Parse the JSON response
