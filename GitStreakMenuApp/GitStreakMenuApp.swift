@@ -25,7 +25,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var gitHubManager: GitHubManager!
     private var settingsWindow: NSWindow?
     private var refreshTimer: Timer?
+    private var updateDisplayTimer: Timer? // Timer to update the display regularly
     private let refreshInterval: TimeInterval = 3600 // Refresh every hour
+    private var lastRefreshTime: Date? // Track when data was last refreshed
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set shared instance
@@ -49,6 +51,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create and set the menu
         let menu = createMenu()
         statusItem.menu = menu
+        
+        // Initialize last refresh menu item
+        updateLastRefreshMenuItem()
+        
+        // Set up timer to update the display every minute
+        setupUpdateDisplayTimer()
         
         // Check if username is already set
         if let username = UserDefaults.standard.string(forKey: "GitHubUsername"), !username.isEmpty {
@@ -77,12 +85,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    func setupUpdateDisplayTimer() {
+        // Invalidate any existing timer
+        updateDisplayTimer?.invalidate()
+        
+        // Create a timer that fires every minute to update the last refresh time display
+        updateDisplayTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.updateLastRefreshMenuItem()
+        }
+    }
+    
     func createMenu() -> NSMenu {
         let menu = NSMenu()
         
         menu.addItem(NSMenuItem(title: "Fetching streak data...", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Refresh", action: #selector(refreshData), keyEquivalent: "r"))
+        
+        // Add item for last refresh time (initially empty)
+        menu.addItem(NSMenuItem(title: "Last refreshed: Never", action: nil, keyEquivalent: ""))
+        
         menu.addItem(NSMenuItem(title: "Test Connection", action: #selector(testConnection), keyEquivalent: "t"))
         menu.addItem(NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
@@ -93,6 +115,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func refreshData() {
         print("Manual refresh triggered")
+        // Don't update lastRefreshTime here - it will be updated after successful fetch
         fetchStreakData()
     }
     
@@ -178,6 +201,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         gitHubManager.fetchCurrentStreak { [weak self] streakCount, error in
             DispatchQueue.main.async {
+                // Update last refresh time
+                self?.lastRefreshTime = Date()
+                // Update the last refresh menu item
+                self?.updateLastRefreshMenuItem()
+                
                 if let error = error {
                     print("Error fetching streak: \(error.localizedDescription)")
                     self?.updateMenuWithError(error)
@@ -249,5 +277,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // If we couldn't extract the streak, refresh the data
         // But we'll avoid doing this to prevent infinite loops
         print("Could not extract streak count from menu item title")
+    }
+    
+    // New function to update the last refresh menu item
+    func updateLastRefreshMenuItem() {
+        if let menu = statusItem.menu, menu.items.count > 3 {
+            let refreshText: String
+            if let lastTime = lastRefreshTime {
+                // Format the time in a more readable way
+                let formatter = DateFormatter()
+                formatter.dateStyle = .none
+                formatter.timeStyle = .short
+                
+                let timeString = formatter.string(from: lastTime)
+                
+                // Calculate time difference
+                let timeDiff = Int(Date().timeIntervalSince(lastTime))
+                
+                if timeDiff < 60 {
+                    refreshText = "Last refreshed: Just now"
+                } else if timeDiff < 3600 {
+                    let minutes = timeDiff / 60
+                    refreshText = "Last refreshed: \(minutes) min ago (\(timeString))"
+                } else if timeDiff < 86400 {
+                    let hours = timeDiff / 3600
+                    refreshText = "Last refreshed: \(hours) hr ago (\(timeString))"
+                } else {
+                    let days = timeDiff / 86400
+                    refreshText = "Last refreshed: \(days) days ago (\(timeString))"
+                }
+            } else {
+                refreshText = "Last refreshed: Never"
+            }
+            
+            menu.items[3].title = refreshText
+        }
     }
 }

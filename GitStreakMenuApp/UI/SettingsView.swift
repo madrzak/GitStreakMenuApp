@@ -12,7 +12,6 @@ struct SettingsView: View {
     @State private var token: String = ""
     @State private var selectedDisplayFormat: GitHubManager.DisplayFormat = .emoji
     @State private var customFormat: String = ""
-    @State private var showingSuccessAlert: Bool = false
     @State private var selectedTab = 0
     @Environment(\.presentationMode) var presentationMode
     
@@ -59,13 +58,6 @@ struct SettingsView: View {
             .tag(1)
         }
         .frame(width: 500, height: 400)
-        .alert("Settings Saved", isPresented: $showingSuccessAlert) {
-            Button("OK", role: .cancel) {
-                closeWindow()
-            }
-        } message: {
-            Text("Your settings have been saved and your streak will now be updated.")
-        }
     }
     
     private func saveAccountSettings() {
@@ -81,7 +73,8 @@ struct SettingsView: View {
         // Update GitHubManager
         gitHubManager?.setCredentials(username: username, token: token.isEmpty ? nil : token)
         
-        showingSuccessAlert = true
+        // Close window and refresh data
+        closeWindow()
     }
     
     private func saveDisplaySettings() {
@@ -113,7 +106,8 @@ struct SettingsView: View {
             }
         }
         
-        showingSuccessAlert = true
+        // Close window and refresh data
+        closeWindow()
     }
     
     private func closeWindow() {
